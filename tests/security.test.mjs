@@ -1,0 +1,33 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {PGlite} from '@electric-sql/pglite';
+test('RLS separa cuentas, fotos y protege revisiones',async()=>{
+const db=new PGlite();await db.exec(`
+create role anon;create role authenticated;
+create schema auth;create schema storage;
+create table auth.users(id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+grant usage on schema public,auth,storage to anon,authenticated;
+grant execute on function auth.uid() to anon,authenticated;
+create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+create table storage.objects(id uuid default gen_random_uuid() primary key,bucket_id text references storage.buckets(id),name text);
+create function storage.foldername(name text) returns text[] language sql immutable as $$ select string_to_array(name,'/') $$;
+alter table storage.objects enable row level security;
+grant select,insert,update,delete on storage.objects to authenticated;
+insert into auth.users values('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222');
+`);
+await db.exec(await readFile(new URL('../supabase/migrations/202610020001_fuerza60.sql',import.meta.url),'utf8'));
+const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
+const as=async(id)=>{await db.exec('reset role;set role authenticated;');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id])};
+await as(A);await db.query('insert into public.fuerza_records(owner_id,key,payload) values($1,$2,$3)',[A,'log:2026-10-01',JSON.stringify({type:'log',date:'2026-10-01',weight:100})]);
+await db.query('insert into storage.objects(bucket_id,name) values($1,$2)',['fuerza-photos',A+'/2026-10-01/a.jpg']);
+await as(B);assert.equal((await db.query('select * from public.fuerza_records')).rows.length,0);assert.equal((await db.query('select * from storage.objects')).rows.length,0);
+await assert.rejects(db.query('insert into public.fuerza_records(owner_id,key,payload) values($1,$2,$3)',[A,'log:2026-10-02',JSON.stringify({type:'log',date:'2026-10-02'})]));
+await assert.rejects(db.query('insert into storage.objects(bucket_id,name) values($1,$2)',['fuerza-photos',A+'/attack.jpg']));
+assert.equal((await db.query("update public.fuerza_records set payload=payload where owner_id=$1 returning key",[A])).rows.length,0);
+await as(A);assert.equal((await db.query('select * from public.fuerza_records')).rows.length,1);
+const r=await db.query("update public.fuerza_records set payload=payload where revision=1 returning revision");assert.equal(r.rows[0].revision,2);
+assert.equal((await db.query("update public.fuerza_records set payload=payload where revision=1 returning key")).rows.length,0);
+await assert.rejects(db.query("update public.fuerza_records set key='otra'"));
+await db.exec("reset role;set role anon;");await assert.rejects(db.query('select * from public.fuerza_records'));
+await db.exec('reset role;');assert.equal((await db.query("select public from storage.buckets where id='fuerza-photos'")).rows[0].public,false);
+await db.close();
+});

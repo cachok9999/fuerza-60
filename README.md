@@ -2,7 +2,7 @@
 
 Aplicación en español para organizar un bloque de 60 días de alimentación, fuerza y seguimiento. Conserva los menús, la rutina y las revisiones del proyecto original. Los registros y fotos se sincronizan en Supabase; GitHub Pages sirve la interfaz.
 
-**Estado de esta entrega:** código preparado y pruebas locales disponibles. No se ha creado un repositorio en tu cuenta ni un proyecto Supabase, y todavía no existe una URL publicada. El funcionamiento real entre dos dispositivos debe verificarse después de conectarlos.
+**Estado de esta entrega:** código preparado y pruebas locales disponibles. Repositorio creado en github.com/cachok9999/fuerza-60. La publicación y la sincronización requieren completar Supabase y las variables de Actions. El funcionamiento real entre dos dispositivos debe verificarse después de conectarlos.
 
 ## 1. Crear el proyecto de Supabase
 

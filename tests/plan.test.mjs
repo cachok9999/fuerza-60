@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {review,menus,nutrition,initialProfile,offset} from '../src/lib/plan.ts';
+const at='2026-10-01',profile={...initialProfile,start:'2026-09-01'};
+const logs=Array.from({length:21},(_,i)=>({date:offset(at,i-20),weight:115,waist:110,calories:2600,protein:190,sleep:8,energy:4,hunger:2}));
+test('espera datos suficientes',()=>assert.equal(review([],profile,at).delta,0));
+test('estancamiento con adherencia permite ajuste pequeño',()=>assert.equal(review(logs,profile,at).delta,-150));
+test('no recorta con adherencia baja',()=>assert.equal(review(logs.map(x=>({...x,calories:3200})),profile,at).delta,0));
+test('no recorta si cintura baja',()=>assert.equal(review(logs.map((x,i)=>({...x,waist:i>=14?108:110})),profile,at).delta,0));
+test('descenso rápido aconseja más energía',()=>assert.equal(review(logs.map((x,i)=>({...x,weight:i>=14?112:115})),profile,at).delta,150));
+test('fatiga protege la recuperación',()=>assert.equal(review(logs.map(x=>({...x,energy:1})),profile,at).delta,150));
+test('no encadena ajustes',()=>assert.equal(review(logs,{...profile,lastAdjustment:'2026-09-29'},at).delta,0));
+test('menús dentro del rango previsto',()=>{for(const m of menus){const n=nutrition(m.flatMap(x=>x.items));assert(n[0]>=1900&&n[0]<=2100);assert(n[1]>=180)}});
